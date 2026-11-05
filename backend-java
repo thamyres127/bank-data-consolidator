@@ -1,0 +1,79 @@
+import java.util.UUID;
+import java.time.Instant;
+
+// ==========================================
+// CAMADA 1: DOMÍNIO (domain) - REGRAS INTOCÁVEIS
+// ==========================================
+
+// Modelo imutável da transação bancária. Possui ID, valor, timestamp e tipo.
+record Transacao(String id, double valor, Instant timestamp, String tipo) {
+    
+    // Validação estrita direto no construtor do Domínio (Camada Defensiva)
+    public Transacao {
+        if (id == null || id.isBlank()) {
+            throw new IllegalArgumentException("ID da transação não pode ser nulo ou vazio.");
+        }
+        if (tipo == null || tipo.isBlank()) {
+            throw new IllegalArgumentException("Tipo da transação não pode ser nulo ou vazio.");
+        }
+    }
+}
+
+// Mecanismo Anti-Fraude e Higienização de Dados do Core Banking
+class MotorValidacao {
+    
+    public static boolean ehValida(Transacao transacao) {
+        // Regra 1: Valores zerados ou negativos são rejeitados imediatamente
+        if (transacao.valor() <= 0) {
+            return false;
+        }
+        
+        // Regra 2: Bloqueio de segurança para payloads com timestamps no futuro
+        if (transacao.timestamp().isAfter(Instant.now())) {
+            return false;
+        }
+        
+        // Regra 3: Simulação de limite de compliance (Transações acima de R$ 10.000 precisam de auditoria especial)
+        if (transacao.valor() > 10000.0) {
+            return true; // É válida, mas passará por outra esteira no futuro
+        }
+        
+        return true;
+    }
+}
+
+// ==========================================
+// ORQUESTRADOR CENTRAL (Main)
+// ==========================================
+public class MyClass {
+    public static void main(String[] args) {
+        System.out.println("=== CORE BANKING: PIPELINE DE INGESTÃO (DOMÍNIO) ===");
+        System.out.println("Status: Inicializando validação estrita de payloads...\n");
+        
+        // Simulação de uma esteira de dados com transações reais e corrompidas
+        Transacao[] loteTransacoes = {
+            new Transacao(UUID.randomUUID().toString().substring(0, 8), 450.00, Instant.now(), "PIX"),
+            new Transacao(UUID.randomUUID().toString().substring(0, 8), -150.00, Instant.now(), "TED"), // Errado: Valor negativo
+            new Transacao(UUID.randomUUID().toString().substring(0, 8), 12500.00, Instant.now(), "DOC"), // Alerta: Alta volumetria
+            new Transacao(UUID.randomUUID().toString().substring(0, 8), 0.00, Instant.now(), "PIX"), // Errado: Valor zerado
+            new Transacao(UUID.randomUUID().toString().substring(0, 8), 89.90, Instant.now().plusSeconds(3600), "CARTAO") // Errado: Data no futuro
+        };
+        
+        int processadas = 0;
+        int rejeitadas = 0;
+        
+        for (Transacao t : loteTransacoes) {
+            if (MotorValidacao.ehValida(t)) {
+                processadas++;
+                System.out.println("✅ [LIMPADO] ID: " + t.id() + " | " + t.tipo() + " | R$ " + t.valor() + " -> Encaminhado para o Data Lakehouse");
+            } else {
+                rejeitadas++;
+                System.out.println("⚠️ [EXPURGADO] ID: " + t.id() + " | " + t.tipo() + " | R$ " + t.valor() + " -> Bloqueado na Ingestão (Dados Corrompidos/Fraude)");
+            }
+        }
+        
+        System.out.println("\n=== RESUMO DO PROCESSAMENTO EM LOTE ===");
+        System.out.println("Transações limpas e processadas: " + processadas);
+        System.out.println("Transações expurgadas do pipeline: " + rejeitadas);
+    }
+}
