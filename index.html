@@ -1,0 +1,222 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Core Banking - Dashboard de Compliance</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            background-color: #0d1117;
+            color: #c9d1d9;
+            margin: 0;
+            padding: 20px;
+        }
+        .container {
+            max-width: 1000px;
+            margin: 0 auto;
+        }
+        h1 {
+            color: #58a6ff;
+            border-bottom: 1px solid #21262d;
+            padding-bottom: 10px;
+        }
+        .dashboard-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+        .card {
+            background-color: #161b22;
+            border: 1px solid #30363d;
+            border-radius: 6px;
+            padding: 20px;
+            text-align: center;
+        }
+        .card h3 {
+            margin: 0 0 10px 0;
+            color: #8b949e;
+            font-size: 14px;
+            text-transform: uppercase;
+        }
+        .card .valor {
+            font-size: 28px;
+            font-weight: bold;
+            color: #f0f6fc;
+        }
+        .table-container {
+            background-color: #161b22;
+            border: 1px solid #30363d;
+            border-radius: 6px;
+            padding: 20px;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            text-align: left;
+        }
+        th, td {
+            padding: 12px;
+            border-bottom: 1px solid #30363d;
+        }
+        th {
+            color: #8b949e;
+        }
+        .badge {
+            padding: 4px 8px;
+            border-radius: 12px;
+            font-size: 12px;
+            font-weight: bold;
+        }
+        .badge-baixo { background-color: rgba(56, 139, 60, 0.15); color: #3fb950; }
+        .badge-medio { background-color: rgba(210, 153, 34, 0.15); color: #d29922; }
+        .badge-alto { background-color: rgba(248, 81, 73, 0.15); color: #f85149; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h1>=== CORE BANKING: MONITOR DE COMPLIANCE ===</h1>
+    
+    <!-- GRID DE INDICADORES ANALÍTICOS -->
+    <div class="dashboard-grid">
+        <div class="card">
+            <h3>Total Transações</h3>
+            <div class="valor" id="totalTransacoes">0</div>
+        </div>
+        <div class="card">
+            <h3>Volume Financeiro</h3>
+            <div class="valor" id="volumeTotal">R$ 0,00</div>
+        </div>
+        <div class="card">
+            <h3>Volumetria Expurgada</h3>
+            <div class="valor" id="totalExpurgados" style="color: #f85149;">0</div>
+        </div>
+    </div>
+
+    <!-- TABELA DE TRANSAÇÕES PROCESSADAS -->
+    <div class="table-container">
+        <h3>Transações Recentes na Esteira</h3>
+        <table>
+            <thead>
+                <tr>
+                    <th>ID</th>
+                    <th>Tipo</th>
+                    <th>Valor</th>
+                    <th>Classificação de Risco</th>
+                </tr>
+            </thead>
+            <tbody id="tabelaCorpo">
+                <!-- Inserido dinamicamente via JS -->
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<script>
+    // Variáveis globais de controle para o modo simulação (Fallback)
+    let simulaQtdTransacoes = 0;
+    let simulaVolumeTotal = 0;
+    let simulaExpurgados = 0;
+    let listaSimulada = [];
+
+    async function carregarDashboard() {
+        try {
+            // Tenta consumir a sua API Java nativa local
+            const resposta = await fetch('http://localhost:8080/api/transacoes');
+            const dados = await resposta.json();
+
+            // Se encontrar a API ativa, renderiza com os dados reais do seu Java
+            document.getElementById('totalExpurgados').innerText = dados.expurgados;
+            document.getElementById('totalTransacoes').innerText = dados.transacoes.length;
+
+            let volumeTotal = 0;
+            const tabelaCorpo = document.getElementById('tabelaCorpo');
+            tabelaCorpo.innerHTML = '';
+
+            dados.transacoes.forEach(t => {
+                volumeTotal += t.valor;
+                let badgeClass = 'badge-baixo';
+                if (t.risco.includes('MÉDIO')) badgeClass = 'badge-medio';
+                if (t.risco.includes('ALTO')) badgeClass = 'badge-alto';
+
+                const linha = `
+                    <tr>
+                        <td>${t.id}</td>
+                        <td>${t.tipo}</td>
+                        <td>R$ ${t.valor.toFixed(2).replace('.', ',')}</td>
+                        <td><span class="badge ${badgeClass}">${t.risco}</span></td>
+                    </tr>
+                `;
+                tabelaCorpo.innerHTML += linha;
+            });
+
+            document.getElementById('volumeTotal').innerText = `R$ ${volumeTotal.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`;
+
+        } catch (erro) {
+            // MODO FALLBACK: API Java offline ou rodando no GitHub Pages público.
+            // Executa automação interna para simular o ecossistema financeiro operando.
+            executarSimulacaoPipeline();
+        }
+    }
+
+    function executarSimulacaoPipeline() {
+        const tabelaCorpo = document.getElementById('tabelaCorpo');
+        const tipos = ['PIX', 'TED', 'DOC'];
+        const riscos = ['BAIXO', 'MÉDIO', 'ALTO'];
+
+        // Gera payloads de transações simuladas em tempo real
+        simulaQtdTransacoes++;
+        const idTx = Math.floor(100000 + Math.random() * 900000);
+        const tipoTx = tipos[Math.floor(Math.random() * tipos.length)];
+        const valorTx = parseFloat((Math.random() * 3200 + 10).toFixed(2));
+        const riscoTx = riscos[Math.floor(Math.random() * riscos.length)];
+
+        if (riscoTx === 'ALTO') {
+            // Lógica do Compliance: se for alto risco, o motor expurga da liquidação
+            simulaExpurgados++;
+        } else {
+            // Transações aprovadas entram no balanço financeiro
+            simulaVolumeTotal += valorTx;
+        }
+
+        // Adiciona a nova transação no início do array
+        listaSimulada.unshift({ id: idTx, tipo: tipoTx, valor: valorTx, risco: riscoTx });
+
+        // Limita a exibição às últimas 6 linhas para manter o design responsivo no celular
+        if (listaSimulada.length > 6) {
+            listaSimulada.pop();
+        }
+
+        // Atualiza a interface gráfica
+        document.getElementById('totalTransacoes').innerText = simulaQtdTransacoes;
+        document.getElementById('totalExpurgados').innerText = simulaExpurgados;
+        document.getElementById('volumeTotal').innerText = `R$ ${simulaVolumeTotal.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`;
+
+        tabelaCorpo.innerHTML = '';
+        listaSimulada.forEach(t => {
+            let badgeClass = 'badge-baixo';
+            if (t.risco === 'MÉDIO') badgeClass = 'badge-medio';
+            if (t.risco === 'ALTO') badgeClass = 'badge-alto';
+
+            const linha = `
+                <tr>
+                    <td>${t.id}</td>
+                    <td>${t.tipo}</td>
+                    <td>R$ ${t.valor.toFixed(2).replace('.', ',')}</td>
+                    <td><span class="badge ${badgeClass}">${t.risco}</span></td>
+                </tr>
+            `;
+            tabelaCorpo.innerHTML += linha;
+        });
+    }
+
+    // Carrega a primeira execução imediatamente
+    carregarDashboard();
+    
+    // Mantém o monitor atualizando dinamicamente a cada 5 segundos
+    setInterval(carregarDashboard, 5000);
+</script>
+</body>
+</html>
